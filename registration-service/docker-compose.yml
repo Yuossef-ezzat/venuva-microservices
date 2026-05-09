@@ -1,0 +1,207 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mysql:
+    image: mysql:8
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: authservice/Dockerfile
+    container_name: auth-service
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SERVER_PORT: 8080
+      JWT_SECRET: c2VjcmV0LWtleS1mb3Itand0LXRva2VuLWdlbmVyYXRpb24td2l0aC1lbm91Z2gtbGVuZ3Ro
+      JWT_EXPIRATION: 86400000
+      JWT_REFRESH_EXPIRATION: 604800000
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/authdb?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      RABBITMQ_HOST: rabbitmq
+      EVENT_SERVICE_URL: http://event-service:8088
+      REGISTRATION_SERVICE_URL: http://registration-service:8085
+      NOTIFICATION_SERVICE_URL: http://notif-service:9090
+      PAYMENT_SERVICE_URL: http://paymentservice:9099
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  registration-service:
+    build:
+      context: .
+      dockerfile: registration-service/Dockerfile
+    container_name: registration-service
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      JWT_SECRET: c2VjcmV0LWtleS1mb3Itand0LXRva2VuLWdlbmVyYXRpb24td2l0aC1lbm91Z2gtbGVuZ3Ro
+      SERVER_PORT: 8085
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/registrationdb?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      RABBITMQ_HOST: rabbitmq
+      AUTH_SERVICE_URL: http://auth-service:8080
+      EVENT_SERVICE_URL: http://event-service:8088
+      NOTIFICATION_SERVICE_URL: http://notif-service:9090
+      PAYMENT_SERVICE_URL: http://paymentservice:9099
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  event-service:
+    build:
+      context: .
+      dockerfile: event-service/Dockerfile
+    container_name: event-service
+    ports:
+      - "8088:8088"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      JWT_SECRET: c2VjcmV0LWtleS1mb3Itand0LXRva2VuLWdlbmVyYXRpb24td2l0aC1lbm91Z2gtbGVuZ3Ro
+      SERVER_PORT: 8088
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eventdb?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      RABBITMQ_HOST: rabbitmq
+      AUTH_SERVICE_URL: http://auth-service:8080
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  notif-service:
+    build:
+      context: .
+      dockerfile: notif-service/Dockerfile
+    container_name: notif-service
+    ports:
+      - "9090:9090"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      JWT_SECRET: c2VjcmV0LWtleS1mb3Itand0LXRva2VuLWdlbmVyYXRpb24td2l0aC1lbm91Z2gtbGVuZ3Ro
+      SPRING_MAIL_HOST: smtp.gmail.com
+      SPRING_MAIL_PORT: 587
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
+      SPRING_MAIL_SMTP_AUTH: "true"
+      SPRING_MAIL_SMTP_STARTTLS_ENABLE: "true"
+      SERVER_PORT: 9090
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/notificationdb?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      RABBITMQ_HOST: rabbitmq
+      AUTH_SERVICE_URL: http://auth-service:8080
+      EVENT_SERVICE_URL: http://event-service:8088
+      REGISTRATION_SERVICE_URL: http://registration-service:8085
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  paymentservice:
+    build:
+      context: .
+      dockerfile: paymentservice/Dockerfile
+    container_name: paymentservice
+    ports:
+      - "9099:9099"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      JWT_SECRET: c2VjcmV0LWtleS1mb3Itand0LXRva2VuLWdlbmVyYXRpb24td2l0aC1lbm91Z2gtbGVuZ3Ro
+      SERVER_PORT: 9099
+      # --- PayMob Configuration ---
+      PAYMOB_API_KEY: "ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5LmV5SmpiR0Z6Y3lJNklrMWxjbU5vWVc1MElpd2ljSEp2Wm1sc1pWOXdheUk2TVRFd056WTFNU3dpYm1GdFpTSTZJakUzTnpjMU5qRXlNek11T0Rrd01EYzBJbjAuSjBNQWdwOHFLNG9RX1V1SmljZ2E4eXZuM29Ia1ZzNUt2SzRzUEUteFZINC1vekNFeWhtVFRUazJUVGhCbFpNTVNDQXZDMlRDd2N4UkItUUozSVJ3M0E="
+      PAYMOB_INTEGRATION_ID: "5403815"
+      PAYMOB_IFRAME_ID: "980804"
+      HMAC_SECRET_KEY: "F7AE6EE1CCBE4AC58BF60ECA4ABA3AA6"
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/paymentdb?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      RABBITMQ_HOST: rabbitmq
+      AUTH_SERVICE_URL: http://auth-service:8080
+      EVENT_SERVICE_URL: http://event-service:8088
+      REGISTRATION_SERVICE_URL: http://registration-service:8085
+      NOTIFICATION_SERVICE_URL: http://notif-service:9090
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    ports:
+      - "80:8080"
+    environment:
+      JWT_SECRET: c2VjcmV0LWtleS1mb3Itand0LXRva2VuLWdlbmVyYXRpb24td2l0aC1lbm91Z2gtbGVuZ3Ro
+    depends_on:
+      - auth-service
+      - registration-service
+      - event-service
+      - notif-service
+      - paymentservice
+
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: phpmyadmin
+    restart: always
+    ports:
+      - "8888:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../event-management-system
+      dockerfile: Dockerfile
+    container_name: frontend-app
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
