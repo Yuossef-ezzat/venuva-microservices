@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"l":"com.example"},{"l":"com.example.AOP.Annotation"},{"l":"com.example.AOP.aspects"},{"l":"com.example.AOP.config"}];updateSearchResults();
